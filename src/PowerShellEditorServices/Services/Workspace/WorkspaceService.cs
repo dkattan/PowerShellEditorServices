@@ -194,7 +194,6 @@ namespace Microsoft.PowerShell.EditorServices.Services
                 case "file":
                 case "untitled":
                 case "vscode-notebook-cell":
-                case "inmemory":
                     break;
 
                 default:
