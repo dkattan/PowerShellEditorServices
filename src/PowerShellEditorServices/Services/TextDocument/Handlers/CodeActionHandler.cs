@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -57,8 +58,17 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
             }
 
             // On Windows, VSCode still gives us file URIs like "file:///c%3a/...", so we need to escape them
-            IReadOnlyDictionary<string, MarkerCorrection> corrections = await _analysisService.GetMostRecentCodeActionsForFileAsync(
-                _workspaceService.GetFile(request.TextDocument.Uri)).ConfigureAwait(false);
+            IReadOnlyDictionary<string, MarkerCorrection> corrections = null;
+            try
+            {
+                var file = _workspaceService.GetFile(request.TextDocument.Uri);
+                corrections = await _analysisService.GetMostRecentCodeActionsForFileAsync(file).ConfigureAwait(false);
+            }
+            catch (FileNotFoundException ex)
+            {
+                _logger.LogWarning("textDocument/codeAction FileNotFound {0}", request.TextDocument.Uri);
+                return Array.Empty<CommandOrCodeAction>();
+            }
 
             if (corrections == null)
             {
