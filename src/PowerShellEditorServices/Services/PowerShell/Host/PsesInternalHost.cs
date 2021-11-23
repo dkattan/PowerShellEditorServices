@@ -774,6 +774,8 @@ namespace Microsoft.PowerShell.EditorServices.Services.PowerShell.Host
 
         private void OnPowerShellIdle(CancellationToken idleCancellationToken)
         {
+            if (_mainRunspaceEngineIntrinsics is null)
+                return;
             IReadOnlyList<PSEventSubscriber> eventSubscribers = _mainRunspaceEngineIntrinsics.Events.Subscribers;
 
             // Go through pending event subscribers and:
