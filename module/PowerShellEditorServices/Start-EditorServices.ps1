@@ -25,19 +25,19 @@
     at the PowerShell Editor Services GitHub repository:
     https://github.com/PowerShell/PowerShellEditorServices/blob/master/module/PowerShellEditorServices/Start-EditorServices.ps1'
 #>
-[CmdletBinding(DefaultParameterSetName = "NamedPipe")]
+[CmdletBinding(DefaultParameterSetName="NamedPipe")]
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory=$true)]
     [ValidateNotNullOrEmpty()]
     [string]
     $HostName,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory=$true)]
     [ValidateNotNullOrEmpty()]
     [string]
     $HostProfileId,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter(Mandatory=$true)]
     [ValidateNotNullOrEmpty()]
     [string]
     $HostVersion,
@@ -52,10 +52,10 @@ param(
     [ValidateSet("Diagnostic", "Verbose", "Normal", "Warning", "Error")]
     $LogLevel,
 
-    [Parameter(Mandatory = $true)]
-    [ValidateNotNullOrEmpty()]
-    [string]
-    $SessionDetailsPath,
+	[Parameter(Mandatory=$true)]
+	[ValidateNotNullOrEmpty()]
+	[string]
+	$SessionDetailsPath,
 
     [switch]
     $EnableConsoleRepl,
@@ -81,35 +81,35 @@ param(
     [switch]
     $ConfirmInstall,
 
-    [Parameter(ParameterSetName = "Stdio", Mandatory = $true)]
+    [Parameter(ParameterSetName="Stdio", Mandatory=$true)]
     [switch]
     $Stdio,
 
-    [Parameter(ParameterSetName = "NamedPipe")]
+    [Parameter(ParameterSetName="NamedPipe")]
     [string]
     $LanguageServicePipeName = $null,
 
-    [Parameter(ParameterSetName = "NamedPipe")]
+    [Parameter(ParameterSetName="NamedPipe")]
     [string]
     $DebugServicePipeName = $null,
 
-    [Parameter(ParameterSetName = "NamedPipeSimplex")]
+    [Parameter(ParameterSetName="NamedPipeSimplex")]
     [switch]
     $SplitInOutPipes,
 
-    [Parameter(ParameterSetName = "NamedPipeSimplex")]
+    [Parameter(ParameterSetName="NamedPipeSimplex")]
     [string]
     $LanguageServiceInPipeName,
 
-    [Parameter(ParameterSetName = "NamedPipeSimplex")]
+    [Parameter(ParameterSetName="NamedPipeSimplex")]
     [string]
     $LanguageServiceOutPipeName,
 
-    [Parameter(ParameterSetName = "NamedPipeSimplex")]
+    [Parameter(ParameterSetName="NamedPipeSimplex")]
     [string]
     $DebugServiceInPipeName = $null,
 
-    [Parameter(ParameterSetName = "NamedPipeSimplex")]
+    [Parameter(ParameterSetName="NamedPipeSimplex")]
     [string]
     $DebugServiceOutPipeName = $null
 )
