@@ -73,6 +73,7 @@ namespace Microsoft.PowerShell.EditorServices.Server
         /// <returns>A task that completes when the server is ready and listening.</returns>
         public async Task StartAsync()
         {
+            
             LanguageServer = await OmniSharp.Extensions.LanguageServer.Server.LanguageServer.From(options =>
             {
                 options
