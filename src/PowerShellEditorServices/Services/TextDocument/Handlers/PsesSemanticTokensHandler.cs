@@ -32,15 +32,14 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
 
         public PsesSemanticTokensHandler(WorkspaceService workspaceService) => _workspaceService = workspaceService;
 
-        protected override Task Tokenize(SemanticTokensBuilder builder, ITextDocumentIdentifierParams identifier,
+        protected override async Task Tokenize(SemanticTokensBuilder builder, ITextDocumentIdentifierParams identifier,
             CancellationToken cancellationToken)
         {
-            ScriptFile file = _workspaceService.GetFile(identifier.TextDocument.Uri);
+            ScriptFile file = await _workspaceService.GetFile(identifier.TextDocument.Uri).ConfigureAwait(false);
             foreach (Token token in file.ScriptTokens)
             {
                 PushToken(token, builder);
             }
-            return Task.CompletedTask;
         }
 
         private static void PushToken(Token token, SemanticTokensBuilder builder)

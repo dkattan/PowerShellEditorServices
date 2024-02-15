@@ -68,7 +68,7 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
             int cursorLine = request.Position.Line + 1;
             int cursorColumn = request.Position.Character + 1;
 
-            ScriptFile scriptFile = _workspaceService.GetFile(request.TextDocument.Uri);
+            ScriptFile scriptFile = await _workspaceService.GetFile(request.TextDocument.Uri).ConfigureAwait(false);
             try
             {
                 (bool isIncomplete, IReadOnlyList<CompletionItem> completionResults) = await GetCompletionsInFileAsync(

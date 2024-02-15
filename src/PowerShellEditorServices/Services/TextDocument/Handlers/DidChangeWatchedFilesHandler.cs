@@ -53,12 +53,12 @@ internal class DidChangeWatchedFilesHandler : IDidChangeWatchedFilesHandler
             },
         };
 
-    public Task<Unit> Handle(DidChangeWatchedFilesParams request, CancellationToken cancellationToken)
+    public async Task<Unit> Handle(DidChangeWatchedFilesParams request, CancellationToken cancellationToken)
     {
         LanguageServerSettings currentSettings = _configurationService.CurrentSettings;
         if (currentSettings.AnalyzeOpenDocumentsOnly)
         {
-            return Task.FromResult(Unit.Value);
+            return Unit.Value;
         }
 
         // Honor `search.exclude` settings in the watcher.
@@ -71,7 +71,7 @@ internal class DidChangeWatchedFilesHandler : IDidChangeWatchedFilesHandler
                 continue;
             }
 
-            if (!_workspaceService.TryGetFile(change.Uri, out ScriptFile scriptFile))
+            if ((await _workspaceService.TryGetFile(change.Uri).ConfigureAwait(false)) is not ScriptFile scriptFile)
             {
                 continue;
             }
@@ -100,7 +100,7 @@ internal class DidChangeWatchedFilesHandler : IDidChangeWatchedFilesHandler
                 string fileContents;
                 try
                 {
-                    fileContents = WorkspaceService.ReadFileContents(change.Uri);
+                    fileContents = await _workspaceService.ReadFileContents(change.Uri).ConfigureAwait(false);
                 }
                 catch
                 {
@@ -112,6 +112,6 @@ internal class DidChangeWatchedFilesHandler : IDidChangeWatchedFilesHandler
             }
         }
 
-        return Task.FromResult(Unit.Value);
+        return Unit.Value;
     }
 }

@@ -40,7 +40,7 @@ namespace PowerShellEditorServices.Test.Language
         public SymbolsServiceTests()
         {
             psesHost = PsesHostFactory.Create(NullLoggerFactory.Instance);
-            workspace = new WorkspaceService(NullLoggerFactory.Instance);
+            workspace = new WorkspaceService(NullLoggerFactory.Instance, psesHost);
             workspace.WorkspaceFolders.Add(new WorkspaceFolder
             {
                 Uri = DocumentUri.FromFileSystemPath(TestUtilities.GetSharedPath("References"))
@@ -76,19 +76,19 @@ namespace PowerShellEditorServices.Test.Language
             Assert.Equal(endColumnNumber, region.EndColumnNumber);
         }
 
-        private ScriptFile GetScriptFile(ScriptRegion scriptRegion) => workspace.GetFile(TestUtilities.GetSharedPath(scriptRegion.File));
+        private async Task<ScriptFile> GetScriptFile(ScriptRegion scriptRegion) => await workspace.GetFile(TestUtilities.GetSharedPath(scriptRegion.File));
 
-        private Task<ParameterSetSignatures> GetParamSetSignatures(ScriptRegion scriptRegion)
+        private async Task<ParameterSetSignatures> GetParamSetSignatures(ScriptRegion scriptRegion)
         {
-            return symbolsService.FindParameterSetsInFileAsync(
-                GetScriptFile(scriptRegion),
+            return await symbolsService.FindParameterSetsInFileAsync(
+                await GetScriptFile(scriptRegion),
                 scriptRegion.StartLineNumber,
                 scriptRegion.StartColumnNumber);
         }
 
         private async Task<IEnumerable<SymbolReference>> GetDefinitions(ScriptRegion scriptRegion)
         {
-            ScriptFile scriptFile = GetScriptFile(scriptRegion);
+            ScriptFile scriptFile = await GetScriptFile(scriptRegion);
 
             // TODO: We should just use the name to find it.
             SymbolReference symbol = SymbolsService.FindSymbolAtLocation(
@@ -112,7 +112,7 @@ namespace PowerShellEditorServices.Test.Language
 
         private async Task<IEnumerable<SymbolReference>> GetReferences(ScriptRegion scriptRegion)
         {
-            ScriptFile scriptFile = GetScriptFile(scriptRegion);
+            ScriptFile scriptFile = await GetScriptFile(scriptRegion);
 
             SymbolReference symbol = SymbolsService.FindSymbolAtLocation(
                 scriptFile,
@@ -127,21 +127,21 @@ namespace PowerShellEditorServices.Test.Language
             return symbols.OrderBy((i) => i.ScriptRegion.ToRange().Start);
         }
 
-        private IEnumerable<SymbolReference> GetOccurrences(ScriptRegion scriptRegion)
+        private async Task<IEnumerable<SymbolReference>> GetOccurrences(ScriptRegion scriptRegion)
         {
             return SymbolsService
                 .FindOccurrencesInFile(
-                    GetScriptFile(scriptRegion),
+                    await GetScriptFile(scriptRegion),
                     scriptRegion.StartLineNumber,
                     scriptRegion.StartColumnNumber)
                 .OrderBy(symbol => symbol.ScriptRegion.ToRange().Start)
                 .ToArray();
         }
 
-        private IEnumerable<SymbolReference> FindSymbolsInFile(ScriptRegion scriptRegion)
+        private async Task<IEnumerable<SymbolReference>> FindSymbolsInFile(ScriptRegion scriptRegion)
         {
             return symbolsService
-                .FindSymbolsInFile(GetScriptFile(scriptRegion))
+                .FindSymbolsInFile(await GetScriptFile(scriptRegion))
                 .OrderBy(symbol => symbol.ScriptRegion.ToRange().Start);
         }
 
@@ -339,13 +339,13 @@ namespace PowerShellEditorServices.Test.Language
                     Assert.False(i.IsDeclaration);
                 });
 
-            Assert.Equal(symbols, GetOccurrences(FindsOccurrencesOnVariableData.SourceDetails));
+            Assert.Equal(symbols, await GetOccurrences(FindsOccurrencesOnVariableData.SourceDetails));
         }
 
         [Fact]
-        public void FindsOccurrencesOnFunction()
+        public async Task FindsOccurrencesOnFunction()
         {
-            IEnumerable<SymbolReference> symbols = GetOccurrences(FindsOccurrencesOnFunctionData.SourceDetails);
+            IEnumerable<SymbolReference> symbols = await GetOccurrences(FindsOccurrencesOnFunctionData.SourceDetails);
             Assert.Collection(symbols,
                 (i) =>
                 {
@@ -375,9 +375,9 @@ namespace PowerShellEditorServices.Test.Language
         }
 
         [Fact]
-        public void FindsOccurrencesOnParameter()
+        public async Task FindsOccurrencesOnParameter()
         {
-            IEnumerable<SymbolReference> symbols = GetOccurrences(FindOccurrencesOnParameterData.SourceDetails);
+            IEnumerable<SymbolReference> symbols = await GetOccurrences(FindOccurrencesOnParameterData.SourceDetails);
             Assert.Collection(symbols,
                 (i) =>
                 {
@@ -443,7 +443,7 @@ namespace PowerShellEditorServices.Test.Language
                     Assert.False(i.IsDeclaration);
                 });
 
-            Assert.Equal(symbols, GetOccurrences(FindsOccurrencesOnTypeSymbolsData.ClassSourceDetails));
+            Assert.Equal(symbols, await GetOccurrences(FindsOccurrencesOnTypeSymbolsData.ClassSourceDetails));
         }
 
         [Fact]
@@ -491,7 +491,7 @@ namespace PowerShellEditorServices.Test.Language
                     Assert.False(i.IsDeclaration);
                 });
 
-            Assert.Equal(symbols, GetOccurrences(FindsOccurrencesOnTypeSymbolsData.EnumSourceDetails));
+            Assert.Equal(symbols, await GetOccurrences(FindsOccurrencesOnTypeSymbolsData.EnumSourceDetails));
         }
 
         [Fact]
@@ -524,7 +524,7 @@ namespace PowerShellEditorServices.Test.Language
                     Assert.False(i.IsDeclaration);
                 });
 
-            Assert.Equal(symbols, GetOccurrences(FindsOccurrencesOnTypeSymbolsData.TypeExpressionSourceDetails));
+            Assert.Equal(symbols, await GetOccurrences(FindsOccurrencesOnTypeSymbolsData.TypeExpressionSourceDetails));
         }
 
         [Fact]
@@ -573,9 +573,9 @@ namespace PowerShellEditorServices.Test.Language
         }
 
         [Fact]
-        public void FindsOccurrencesOnTypeConstraint()
+        public async Task FindsOccurrencesOnTypeConstraint()
         {
-            IEnumerable<SymbolReference> symbols = GetOccurrences(FindsOccurrencesOnTypeSymbolsData.TypeConstraintSourceDetails);
+            IEnumerable<SymbolReference> symbols = await GetOccurrences(FindsOccurrencesOnTypeSymbolsData.TypeConstraintSourceDetails);
             Assert.Collection(symbols,
                 (i) =>
                 {
@@ -614,7 +614,7 @@ namespace PowerShellEditorServices.Test.Language
                 });
 
             Assert.Equal(symbols, await GetReferences(FindsReferencesOnTypeSymbolsData.ConstructorSourceDetails));
-            Assert.Equal(symbols, GetOccurrences(FindsOccurrencesOnTypeSymbolsData.ConstructorSourceDetails));
+            Assert.Equal(symbols, await GetOccurrences(FindsOccurrencesOnTypeSymbolsData.ConstructorSourceDetails));
         }
 
         [Fact]
@@ -662,7 +662,7 @@ namespace PowerShellEditorServices.Test.Language
                     Assert.False(i.IsDeclaration);
                 });
 
-            Assert.Equal(symbols, GetOccurrences(FindsOccurrencesOnTypeSymbolsData.MethodSourceDetails));
+            Assert.Equal(symbols, await GetOccurrences(FindsOccurrencesOnTypeSymbolsData.MethodSourceDetails));
         }
 
         [Fact]
@@ -697,9 +697,9 @@ namespace PowerShellEditorServices.Test.Language
         }
 
         [Fact]
-        public void FindsOccurrencesOnProperty()
+        public async Task FindsOccurrencesOnPropertyAsync()
         {
-            IEnumerable<SymbolReference> symbols = GetOccurrences(FindsOccurrencesOnTypeSymbolsData.PropertySourceDetails);
+            IEnumerable<SymbolReference> symbols = await GetOccurrences(FindsOccurrencesOnTypeSymbolsData.PropertySourceDetails);
             Assert.Collection(symbols,
                 (i) =>
                 {
@@ -757,7 +757,7 @@ namespace PowerShellEditorServices.Test.Language
                     Assert.False(i.IsDeclaration);
                 });
 
-            Assert.Equal(symbols, GetOccurrences(FindsOccurrencesOnTypeSymbolsData.EnumMemberSourceDetails));
+            Assert.Equal(symbols, await GetOccurrences(FindsOccurrencesOnTypeSymbolsData.EnumMemberSourceDetails));
         }
 
         [SkippableFact]
@@ -765,7 +765,7 @@ namespace PowerShellEditorServices.Test.Language
         {
             Skip.IfNot(VersionUtils.IsMacOS, "macOS gets the right synopsis but others don't.");
             SymbolDetails symbolDetails = await symbolsService.FindSymbolDetailsAtLocationAsync(
-                GetScriptFile(FindsDetailsForBuiltInCommandData.SourceDetails),
+                await GetScriptFile(FindsDetailsForBuiltInCommandData.SourceDetails),
                 FindsDetailsForBuiltInCommandData.SourceDetails.StartLineNumber,
                 FindsDetailsForBuiltInCommandData.SourceDetails.StartColumnNumber,
                 CancellationToken.None);
@@ -774,9 +774,9 @@ namespace PowerShellEditorServices.Test.Language
         }
 
         [Fact]
-        public void FindsSymbolsInFile()
+        public async Task FindsSymbolsInFileAsync()
         {
-            IEnumerable<SymbolReference> symbols = FindSymbolsInFile(FindSymbolsInMultiSymbolFile.SourceDetails);
+            IEnumerable<SymbolReference> symbols = await FindSymbolsInFile(FindSymbolsInMultiSymbolFile.SourceDetails);
 
             Assert.Equal(7, symbols.Count(i => i.Type == SymbolType.Function));
             Assert.Equal(8, symbols.Count(i => i.Type == SymbolType.Variable));
@@ -788,7 +788,7 @@ namespace PowerShellEditorServices.Test.Language
             Assert.Equal("fn AFunction", symbol.Id);
             Assert.Equal("function script:AFunction ()", symbol.Name);
             Assert.True(symbol.IsDeclaration);
-            Assert.Equal(2, GetOccurrences(symbol.NameRegion).Count());
+            Assert.Equal(2, (await GetOccurrences(symbol.NameRegion)).Count());
 
             symbol = symbols.First(i => i.Id == "fn AFilter");
             Assert.Equal("filter AFilter ()", symbol.Name);
@@ -840,10 +840,10 @@ namespace PowerShellEditorServices.Test.Language
         }
 
         [Fact]
-        public void FindsRegionsInFile()
+        public async Task FindsRegionsInFileAsync()
         {
             symbolsService.TryRegisterDocumentSymbolProvider(new RegionDocumentSymbolProvider());
-            IEnumerable<SymbolReference> symbols = FindSymbolsInFile(FindSymbolsInMultiSymbolFile.SourceDetails);
+            IEnumerable<SymbolReference> symbols = await FindSymbolsInFile(FindSymbolsInMultiSymbolFile.SourceDetails);
             Assert.Collection(symbols.Where(i => i.Type == SymbolType.Region),
                  (i) =>
                  {
@@ -866,9 +866,9 @@ namespace PowerShellEditorServices.Test.Language
         }
 
         [Fact]
-        public void FindsSymbolsWithNewLineInFile()
+        public async Task FindsSymbolsWithNewLineInFileAsync()
         {
-            IEnumerable<SymbolReference> symbols = FindSymbolsInFile(FindSymbolsInNewLineSymbolFile.SourceDetails);
+            IEnumerable<SymbolReference> symbols = await FindSymbolsInFile(FindSymbolsInNewLineSymbolFile.SourceDetails);
 
             SymbolReference symbol = Assert.Single(symbols.Where(i => i.Type == SymbolType.Function));
             Assert.Equal("fn returnTrue", symbol.Id);
@@ -908,11 +908,11 @@ namespace PowerShellEditorServices.Test.Language
         }
 
         [Fact(Skip = "DSC symbols don't work yet.")]
-        public void FindsSymbolsInDSCFile()
+        public async Task FindsSymbolsInDSCFileAsync()
         {
             Skip.If(!s_isWindows, "DSC only works properly on Windows.");
 
-            IEnumerable<SymbolReference> symbols = FindSymbolsInFile(FindSymbolsInDSCFile.SourceDetails);
+            IEnumerable<SymbolReference> symbols = await FindSymbolsInFile(FindSymbolsInDSCFile.SourceDetails);
             SymbolReference symbol = Assert.Single(symbols, i => i.Type == SymbolType.Configuration);
             Assert.Equal("AConfiguration", symbol.Id);
             Assert.Equal(2, symbol.ScriptRegion.StartLineNumber);
@@ -920,9 +920,9 @@ namespace PowerShellEditorServices.Test.Language
         }
 
         [Fact]
-        public void FindsSymbolsInPesterFile()
+        public async Task FindsSymbolsInPesterFile()
         {
-            IEnumerable<PesterSymbolReference> symbols = FindSymbolsInFile(FindSymbolsInPesterFile.SourceDetails).OfType<PesterSymbolReference>();
+            IEnumerable<PesterSymbolReference> symbols = (await FindSymbolsInFile(FindSymbolsInPesterFile.SourceDetails)).OfType<PesterSymbolReference>();
             Assert.Equal(12, symbols.Count(i => i.Type == SymbolType.Function));
 
             SymbolReference symbol = Assert.Single(symbols, i => i.Command == PesterCommandType.Describe);
@@ -969,18 +969,18 @@ namespace PowerShellEditorServices.Test.Language
         }
 
         [Fact]
-        public void FindsSymbolsInPSKoansFile()
+        public async Task FindsSymbolsInPSKoansFile()
         {
-            IEnumerable<PesterSymbolReference> symbols = FindSymbolsInFile(FindSymbolsInPSKoansFile.SourceDetails).OfType<PesterSymbolReference>();
+            IEnumerable<PesterSymbolReference> symbols = (await FindSymbolsInFile(FindSymbolsInPSKoansFile.SourceDetails)).OfType<PesterSymbolReference>();
 
             // Pester symbols are properly tested in FindsSymbolsInPesterFile so only counting to make sure they appear
             Assert.Equal(7, symbols.Count(i => i.Type == SymbolType.Function));
         }
 
         [Fact]
-        public void FindsSymbolsInPSDFile()
+        public async Task FindsSymbolsInPSDFile()
         {
-            IEnumerable<SymbolReference> symbols = FindSymbolsInFile(FindSymbolsInPSDFile.SourceDetails);
+            IEnumerable<SymbolReference> symbols = await FindSymbolsInFile(FindSymbolsInPSDFile.SourceDetails);
             Assert.All(symbols, i => Assert.Equal(SymbolType.HashtableKey, i.Type));
             Assert.Collection(symbols,
                 i => Assert.Equal("property1", i.Id),
@@ -989,9 +989,9 @@ namespace PowerShellEditorServices.Test.Language
         }
 
         [Fact]
-        public void FindsSymbolsInNoSymbolsFile()
+        public async Task FindsSymbolsInNoSymbolsFile()
         {
-            IEnumerable<SymbolReference> symbolsResult = FindSymbolsInFile(FindSymbolsInNoSymbolsFile.SourceDetails);
+            IEnumerable<SymbolReference> symbolsResult = await FindSymbolsInFile(FindSymbolsInNoSymbolsFile.SourceDetails);
             Assert.Empty(symbolsResult);
         }
     }

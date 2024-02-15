@@ -333,11 +333,11 @@ namespace Microsoft.PowerShell.EditorServices.Services
             if (scanTask is null)
             {
                 scanTask = Task.Run(
-                    () =>
+                    async () =>
                     {
-                        foreach (string file in _workspaceService.EnumeratePSFiles())
+                        foreach (string file in await _workspaceService.EnumeratePSFiles(cancellationToken).ConfigureAwait(false))
                         {
-                            if (_workspaceService.TryGetFile(file, out ScriptFile scriptFile))
+                            if ((await _workspaceService.TryGetFile(file).ConfigureAwait(false)) is ScriptFile scriptFile)
                             {
                                 scriptFile.References.EnsureInitialized();
                             }
@@ -457,7 +457,7 @@ namespace Microsoft.PowerShell.EditorServices.Services
             return functionDefinitionAst as FunctionDefinitionAst;
         }
 
-        internal void OnConfigurationUpdated(object _, LanguageServerSettings e)
+        internal async Task OnConfigurationUpdated(LanguageServerSettings e)
         {
             if (e.AnalyzeOpenDocumentsOnly)
             {

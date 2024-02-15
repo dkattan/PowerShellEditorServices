@@ -148,7 +148,7 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
         {
             _logger.LogDebug($"Handling document symbols for {request.TextDocument.Uri}");
 
-            ScriptFile scriptFile = _workspaceService.GetFile(request.TextDocument.Uri);
+            ScriptFile scriptFile = await _workspaceService.GetFile(request.TextDocument.Uri).ConfigureAwait(false);
 
             List<HierarchicalSymbol> hierarchicalSymbols = new();
 

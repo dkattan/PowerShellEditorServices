@@ -54,7 +54,7 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
 
             // Run any events subscribed to configuration updates
             _logger.LogTrace("Running configuration update event handlers");
-            ConfigurationUpdated?.Invoke(this, _configurationService.CurrentSettings);
+            await (ConfigurationUpdated?.Invoke(_configurationService.CurrentSettings)).ConfigureAwait(false);
 
             // Convert the editor file glob patterns into an array for the Workspace
             // Both the files.exclude and search.exclude hash tables look like (glob-text, is-enabled):
@@ -101,6 +101,6 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
         }
 
 
-        public event EventHandler<LanguageServerSettings> ConfigurationUpdated;
+        public Func<LanguageServerSettings, Task> ConfigurationUpdated;
     }
 }

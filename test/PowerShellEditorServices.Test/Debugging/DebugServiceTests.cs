@@ -19,6 +19,7 @@ using Microsoft.PowerShell.EditorServices.Services.TextDocument;
 using Microsoft.PowerShell.EditorServices.Test;
 using Microsoft.PowerShell.EditorServices.Test.Shared;
 using Microsoft.PowerShell.EditorServices.Utility;
+using Microsoft.VisualStudio.Threading;
 using Xunit;
 
 namespace PowerShellEditorServices.Test.Debugging
@@ -33,7 +34,7 @@ namespace PowerShellEditorServices.Test.Debugging
     }
 
     [Trait("Category", "DebugService")]
-    public class DebugServiceTests : IDisposable
+    public class DebugServiceTests : IDisposable, IAsyncLifetime
     {
         private readonly PsesInternalHost psesHost;
         private readonly BreakpointService breakpointService;
@@ -70,20 +71,25 @@ namespace PowerShellEditorServices.Test.Debugging
             debugService.DebuggerStopped += OnDebuggerStopped;
 
             // Load the test debug files.
-            workspace = new WorkspaceService(NullLoggerFactory.Instance);
+            workspace = new WorkspaceService(NullLoggerFactory.Instance, psesHost);
             debugScriptFile = GetDebugScript("DebugTest.ps1");
             oddPathScriptFile = GetDebugScript("Debug' W&ith $Params [Test].ps1");
             variableScriptFile = GetDebugScript("VariableTest.ps1");
         }
+        public async Task InitializeAsync()
+        {
 
-        public void Dispose()
+        }
+        public async Task DisposeAsync()
         {
             debugService.Abort();
             debuggerStoppedQueue.Dispose();
-#pragma warning disable VSTHRD002
-            psesHost.StopAsync().Wait();
-#pragma warning restore VSTHRD002
+            await psesHost.StopAsync();
             GC.SuppressFinalize(this);
+        }
+        public void Dispose()
+        {
+            return;
         }
 
         /// <summary>
@@ -97,7 +103,7 @@ namespace PowerShellEditorServices.Test.Debugging
         /// <param name="e"></param>
         private void OnDebuggerStopped(object sender, DebuggerStoppedEventArgs e) => debuggerStoppedQueue.Add(e);
 
-        private ScriptFile GetDebugScript(string fileName) => workspace.GetFile(TestUtilities.GetSharedPath(Path.Combine("Debugging", fileName)));
+        private ScriptFile GetDebugScript(string fileName) => workspace.GetFile(TestUtilities.GetSharedPath(Path.Combine("Debugging", fileName))).GetAwaiter().GetResult();
 
         private Task<VariableDetailsBase[]> GetVariables(string scopeName)
         {
@@ -172,7 +178,6 @@ namespace PowerShellEditorServices.Test.Debugging
         {
             await debugService.SetCommandBreakpointsAsync(
                 new[] { CommandBreakpointDetails.Create("Get-Random") });
-
             Task<IReadOnlyList<int>> executeTask = psesHost.ExecutePSCommandAsync<int>(
                 new PSCommand().AddScript("Get-Random -SetSeed 42 -Maximum 100"), CancellationToken.None);
 
@@ -542,7 +547,7 @@ namespace PowerShellEditorServices.Test.Debugging
             ScriptFile scriptFile = workspace.GetFileBuffer(scriptPath, contents);
             Assert.Equal(scriptPath, scriptFile.DocumentUri);
             Assert.Equal(contents, scriptFile.Contents);
-            Assert.True(workspace.TryGetFile(scriptPath, out ScriptFile _));
+            Assert.NotNull(await workspace.TryGetFile(scriptPath));
 
             await debugService.SetCommandBreakpointsAsync(
                 new[] { CommandBreakpointDetails.Create("Write-Output") });

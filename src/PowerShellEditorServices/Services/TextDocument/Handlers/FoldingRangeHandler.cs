@@ -33,18 +33,18 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
             DocumentSelector = LspUtils.PowerShellDocumentSelector
         };
 
-        public override Task<Container<FoldingRange>> Handle(FoldingRangeRequestParam request, CancellationToken cancellationToken)
+        public override async Task<Container<FoldingRange>> Handle(FoldingRangeRequestParam request, CancellationToken cancellationToken)
         {
             if (cancellationToken.IsCancellationRequested)
             {
                 _logger.LogDebug("FoldingRange request canceled for file: {Uri}", request.TextDocument.Uri);
-                return Task.FromResult(s_emptyFoldingRangeContainer);
+                return s_emptyFoldingRangeContainer;
             }
 
             // TODO: Should be using dynamic registrations
             if (!_configurationService.CurrentSettings.CodeFolding.Enable)
             {
-                return Task.FromResult(s_emptyFoldingRangeContainer);
+                return s_emptyFoldingRangeContainer;
             }
 
             // Avoid crash when using untitled: scheme or any other scheme where the document doesn't
@@ -52,9 +52,9 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
             // Perhaps a better option would be to parse the contents of the document as a string
             // as opposed to reading a file but the scenario of "no backing file" probably doesn't
             // warrant the extra effort.
-            if (!_workspaceService.TryGetFile(request.TextDocument.Uri, out ScriptFile scriptFile))
+            if ((await _workspaceService.TryGetFile(request.TextDocument.Uri).ConfigureAwait(false)) is not ScriptFile scriptFile)
             {
-                return Task.FromResult(s_emptyFoldingRangeContainer);
+                return s_emptyFoldingRangeContainer;
             }
 
             // If we're showing the last line, decrement the Endline of all regions by one.
@@ -78,8 +78,8 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
             }
 
             return folds.Count == 0
-                ? Task.FromResult(s_emptyFoldingRangeContainer)
-                : Task.FromResult(new Container<FoldingRange>(folds));
+                ? s_emptyFoldingRangeContainer
+                : new Container<FoldingRange>(folds);
         }
     }
 }

@@ -44,7 +44,7 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
                 return null;
             }
 
-            ScriptFile scriptFile = _workspaceService.GetFile(request.TextDocument.Uri);
+            ScriptFile scriptFile = await _workspaceService.GetFile(request.TextDocument.Uri).ConfigureAwait(false);
 
             SymbolDetails symbolDetails =
                 await _symbolsService.FindSymbolDetailsAtLocationAsync(

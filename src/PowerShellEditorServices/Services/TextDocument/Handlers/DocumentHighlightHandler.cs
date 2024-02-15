@@ -34,11 +34,11 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
             DocumentSelector = LspUtils.PowerShellDocumentSelector
         };
 
-        public override Task<DocumentHighlightContainer> Handle(
+        public override async Task<DocumentHighlightContainer> Handle(
             DocumentHighlightParams request,
             CancellationToken cancellationToken)
         {
-            ScriptFile scriptFile = _workspaceService.GetFile(request.TextDocument.Uri);
+            ScriptFile scriptFile = await _workspaceService.GetFile(request.TextDocument.Uri).ConfigureAwait(false);
 
             IEnumerable<SymbolReference> occurrences = SymbolsService.FindOccurrencesInFile(
                 scriptFile,
@@ -58,8 +58,8 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
             _logger.LogDebug("Highlights: " + highlights);
 
             return cancellationToken.IsCancellationRequested || highlights.Count == 0
-                ? Task.FromResult(s_emptyHighlightContainer)
-                : Task.FromResult(new DocumentHighlightContainer(highlights));
+                ? s_emptyHighlightContainer
+                : new DocumentHighlightContainer(highlights);
         }
     }
 }

@@ -3,10 +3,13 @@
 
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.PowerShell.EditorServices.Services;
+using Microsoft.PowerShell.EditorServices.Services.PowerShell.Host;
 using Microsoft.PowerShell.EditorServices.Services.Symbols;
 using Microsoft.PowerShell.EditorServices.Services.TextDocument;
+using Microsoft.PowerShell.EditorServices.Test;
 using Microsoft.PowerShell.EditorServices.Test.Shared;
 using OmniSharp.Extensions.LanguageServer.Protocol.Models;
 using Xunit;
@@ -14,14 +17,14 @@ using Xunit;
 namespace PowerShellEditorServices.Test.Services.Symbols
 {
     [Trait("Category", "AstOperations")]
-    public class AstOperationsTests
+    public class AstOperationsTests : IAsyncLifetime
     {
-        private readonly ScriptFile scriptFile;
-
-        public AstOperationsTests()
+        private ScriptFile scriptFile;
+        public async Task InitializeAsync()
         {
-            WorkspaceService workspace = new(NullLoggerFactory.Instance);
-            scriptFile = workspace.GetFile(TestUtilities.GetSharedPath("References/FunctionReference.ps1"));
+            PsesInternalHost psesHost = PsesHostFactory.Create(NullLoggerFactory.Instance);
+            WorkspaceService workspace = new(NullLoggerFactory.Instance, psesHost);
+            scriptFile = await workspace.GetFile(TestUtilities.GetSharedPath("References/FunctionReference.ps1"));
         }
 
         [Theory]
@@ -59,6 +62,11 @@ namespace PowerShellEditorServices.Test.Services.Symbols
 
                 positionsIndex++;
             }
+        }
+
+        public async Task DisposeAsync()
+        {
+            return;
         }
 
         public static object[][] FindReferencesOfSymbolAtPositionData { get; } = new object[][]

@@ -37,19 +37,19 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
             ResolveProvider = true
         };
 
-        public override Task<CodeLensContainer> Handle(CodeLensParams request, CancellationToken cancellationToken)
+        public override async Task<CodeLensContainer> Handle(CodeLensParams request, CancellationToken cancellationToken)
         {
             _logger.LogDebug($"Handling code lens request for {request.TextDocument.Uri}");
 
-            ScriptFile scriptFile = _workspaceService.GetFile(request.TextDocument.Uri);
+            ScriptFile scriptFile = await _workspaceService.GetFile(request.TextDocument.Uri).ConfigureAwait(false);
             IEnumerable<CodeLens> codeLensResults = ProvideCodeLenses(scriptFile);
 
             return cancellationToken.IsCancellationRequested
-                ? Task.FromResult(s_emptyCodeLensContainer)
-                : Task.FromResult(new CodeLensContainer(codeLensResults));
+                ? s_emptyCodeLensContainer
+                : new CodeLensContainer(codeLensResults);
         }
 
-        public override Task<CodeLens> Handle(CodeLens request, CancellationToken cancellationToken)
+        public override async Task<CodeLens> Handle(CodeLens request, CancellationToken cancellationToken)
         {
             // TODO: Catch deserialization exception on bad object
             CodeLensData codeLensData = request.Data.ToObject<CodeLensData>();
@@ -58,8 +58,8 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
                 .GetCodeLensProviders()
                 .FirstOrDefault(provider => provider.ProviderId.Equals(codeLensData.ProviderId, StringComparison.Ordinal));
 
-            ScriptFile scriptFile = _workspaceService.GetFile(codeLensData.Uri);
-            return originalProvider.ResolveCodeLens(request, scriptFile, cancellationToken);
+            ScriptFile scriptFile = await _workspaceService.GetFile(codeLensData.Uri).ConfigureAwait(false);
+            return await originalProvider.ResolveCodeLens(request, scriptFile, cancellationToken).ConfigureAwait(false);
         }
 
         /// <summary>

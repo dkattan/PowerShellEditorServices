@@ -39,7 +39,7 @@ namespace PowerShellEditorServices.Test.Session
             ScriptFile testPathOutside = CreateScriptFile("c:/Test/PeerPath/FilePath.ps1");
             ScriptFile testPathAnotherDrive = CreateScriptFile("z:/TryAndFindMe/FilePath.ps1");
 
-            WorkspaceService workspace = new(NullLoggerFactory.Instance);
+            WorkspaceService workspace = new(NullLoggerFactory.Instance, PsesHostFactory.Create(NullLoggerFactory.Instance));
 
             // Test with zero workspace folders
             Assert.Equal(
@@ -77,7 +77,7 @@ namespace PowerShellEditorServices.Test.Session
 
         internal static WorkspaceService FixturesWorkspace()
         {
-            return new WorkspaceService(NullLoggerFactory.Instance)
+            return new WorkspaceService(NullLoggerFactory.Instance, PsesHostFactory.Create(NullLoggerFactory.Instance))
             {
                 WorkspaceFolders =
                 {
@@ -103,18 +103,19 @@ namespace PowerShellEditorServices.Test.Session
         private const int s_defaultMaxDepth = 64;
         private const bool s_defaultIgnoreReparsePoints = false;
 
-        internal static List<string> ExecuteEnumeratePSFiles(
+        internal static async Task<List<string>> ExecuteEnumeratePSFiles(
             WorkspaceService workspace,
             string[] excludeGlobs,
             string[] includeGlobs,
             int maxDepth,
             bool ignoreReparsePoints)
         {
-            List<string> fileList = new(workspace.EnumeratePSFiles(
+            List<string> fileList = new(await workspace.EnumeratePSFilesAsync(
                 excludeGlobs: excludeGlobs,
                 includeGlobs: includeGlobs,
                 maxDepth: maxDepth,
-                ignoreReparsePoints: ignoreReparsePoints
+                ignoreReparsePoints: ignoreReparsePoints,
+                cancellationToken: CancellationToken.None
             ));
 
             // Assume order is not important from EnumeratePSFiles and sort the array so we can use
@@ -124,10 +125,10 @@ namespace PowerShellEditorServices.Test.Session
         }
 
         [Fact]
-        public void CanRecurseDirectoryTree()
+        public async Task CanRecurseDirectoryTree()
         {
             WorkspaceService workspace = FixturesWorkspace();
-            List<string> actual = ExecuteEnumeratePSFiles(
+            List<string> actual = await ExecuteEnumeratePSFiles(
                 workspace: workspace,
                 excludeGlobs: s_defaultExcludeGlobs,
                 includeGlobs: s_defaultIncludeGlobs,
@@ -155,10 +156,10 @@ namespace PowerShellEditorServices.Test.Session
         }
 
         [Fact]
-        public void CanRecurseDirectoryTreeWithLimit()
+        public async Task CanRecurseDirectoryTreeWithLimitAsync()
         {
             WorkspaceService workspace = FixturesWorkspace();
-            List<string> actual = ExecuteEnumeratePSFiles(
+            List<string> actual = await ExecuteEnumeratePSFiles(
                 workspace: workspace,
                 excludeGlobs: s_defaultExcludeGlobs,
                 includeGlobs: s_defaultIncludeGlobs,
@@ -169,10 +170,10 @@ namespace PowerShellEditorServices.Test.Session
         }
 
         [Fact]
-        public void CanRecurseDirectoryTreeWithGlobs()
+        public async Task CanRecurseDirectoryTreeWithGlobsAsync()
         {
             WorkspaceService workspace = FixturesWorkspace();
-            List<string> actual = ExecuteEnumeratePSFiles(
+            List<string> actual = await ExecuteEnumeratePSFiles(
                 workspace: workspace,
                 excludeGlobs: new[] { "**/donotfind*" },          // Exclude any files starting with donotfind
                 includeGlobs: new[] { "**/*.ps1", "**/*.psd1" }, // Only include PS1 and PSD1 files
@@ -187,12 +188,12 @@ namespace PowerShellEditorServices.Test.Session
         }
 
         [Fact]
-        public void CanOpenAndCloseFile()
+        public async Task CanOpenAndCloseFileAsync()
         {
             WorkspaceService workspace = FixturesWorkspace();
             string filePath = Path.GetFullPath(Path.Combine(s_workspacePath, "rootfile.ps1"));
 
-            ScriptFile file = workspace.GetFile(filePath);
+            ScriptFile file = await workspace.GetFile(filePath);
             Assert.Equal(workspace.GetOpenedFiles(), new[] { file });
 
             workspace.CloseFile(file);

@@ -5,6 +5,7 @@ using Microsoft.PowerShell.EditorServices.Services.TextDocument;
 using System;
 using System.Collections.Generic;
 using System.Management.Automation.Language;
+using System.Threading.Tasks;
 
 namespace Microsoft.PowerShell.EditorServices.Extensions.Services
 {
@@ -64,7 +65,7 @@ namespace Microsoft.PowerShell.EditorServices.Extensions.Services
         /// </summary>
         /// <param name="fileUri">The absolute URI of the file to get.</param>
         /// <returns>A representation of the file.</returns>
-        IEditorScriptFile GetFile(Uri fileUri);
+        Task<IEditorScriptFile> GetFile(Uri fileUri);
 
         /// <summary>
         /// Attempt to get a file within the workspace.
@@ -72,14 +73,14 @@ namespace Microsoft.PowerShell.EditorServices.Extensions.Services
         /// <param name="fileUri">The absolute URI of the file to get.</param>
         /// <param name="file">The file, if it was found.</param>
         /// <returns>True if the file was found, false otherwise.</returns>
-        bool TryGetFile(Uri fileUri, out IEditorScriptFile file);
+        Task<IEditorScriptFile?> TryGetFile(Uri fileUri);
 
         /// <summary>
         /// Get all the open files in the editor workspace.
         /// The result is not kept up to date as files are opened or closed.
         /// </summary>
         /// <returns>All open files in the editor workspace.</returns>
-        IReadOnlyList<IEditorScriptFile> GetOpenedFiles();
+        Task<IReadOnlyList<IEditorScriptFile>> GetOpenedFiles();
     }
 
     internal class EditorScriptFile : IEditorScriptFile
@@ -124,30 +125,28 @@ namespace Microsoft.PowerShell.EditorServices.Extensions.Services
 
         public IReadOnlyList<string> ExcludedFileGlobs { get; }
 
-        public IEditorScriptFile GetFile(Uri fileUri) => GetEditorFileFromScriptFile(_workspaceService.GetFile(fileUri));
+        public async Task<IEditorScriptFile> GetFile(Uri fileUri) => await GetEditorFileFromScriptFile(await _workspaceService.GetFile(fileUri).ConfigureAwait(false)).ConfigureAwait(false);
 
-        public bool TryGetFile(Uri fileUri, out IEditorScriptFile file)
+        public async Task<IEditorScriptFile?> TryGetFile(Uri fileUri)
         {
-            if (!_workspaceService.TryGetFile(fileUri.LocalPath, out ScriptFile scriptFile))
+            if (await _workspaceService.TryGetFile(fileUri.LocalPath).ConfigureAwait(false) is not ScriptFile scriptFile)
             {
-                file = null;
-                return false;
+                return null;
             }
 
-            file = GetEditorFileFromScriptFile(scriptFile);
-            return true;
+            return await GetEditorFileFromScriptFile(scriptFile).ConfigureAwait(false);
         }
 
-        public IReadOnlyList<IEditorScriptFile> GetOpenedFiles()
+        public async Task<IReadOnlyList<IEditorScriptFile>> GetOpenedFiles()
         {
             List<IEditorScriptFile> files = new();
             foreach (ScriptFile openedFile in _workspaceService.GetOpenedFiles())
             {
-                files.Add(GetEditorFileFromScriptFile(openedFile));
+                files.Add(await GetEditorFileFromScriptFile(openedFile).ConfigureAwait(false));
             }
             return files.AsReadOnly();
         }
 
-        private static IEditorScriptFile GetEditorFileFromScriptFile(ScriptFile file) => new EditorScriptFile(file);
+        private static async Task<IEditorScriptFile> GetEditorFileFromScriptFile(ScriptFile file) => new EditorScriptFile(file);
     }
 }

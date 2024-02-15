@@ -49,7 +49,8 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
 
         public async Task<SetBreakpointsResponse> Handle(SetBreakpointsArguments request, CancellationToken cancellationToken)
         {
-            if (!_workspaceService.TryGetFile(request.Source.Path, out ScriptFile scriptFile))
+            ScriptFile scriptFile = await _workspaceService.TryGetFile(request.Source.Path).ConfigureAwait(false);
+            if (scriptFile is null)
             {
                 string message = _debugStateService.NoDebug ? string.Empty : "Source file could not be accessed, breakpoint not set.";
                 IEnumerable<Breakpoint> srcBreakpoints = request.Breakpoints

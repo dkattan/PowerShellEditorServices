@@ -28,6 +28,7 @@ namespace Microsoft.PowerShell.EditorServices.Services
     /// </summary>
     internal class AnalysisService : IDisposable
     {
+        private readonly SemaphoreSlim _initializationSemaphore = new(1, 1);
         /// <summary>
         /// Reliably generate an ID for a diagnostic record to track it.
         /// </summary>
@@ -91,9 +92,6 @@ namespace Microsoft.PowerShell.EditorServices.Services
         private readonly int _analysisDelayMillis = 750;
 
         private readonly ConcurrentDictionary<ScriptFile, CorrectionTableEntry> _mostRecentCorrectionsByFile = new();
-
-        private Lazy<PssaCmdletAnalysisEngine> _analysisEngineLazy;
-
         private CancellationTokenSource _diagnosticsCancellationTokenSource;
 
         private readonly string _pssaModulePath;
@@ -112,14 +110,37 @@ namespace Microsoft.PowerShell.EditorServices.Services
             _languageServer = languageServer;
             _configurationService = configurationService;
             _workspaceService = workspaceService;
-            _analysisEngineLazy = new Lazy<PssaCmdletAnalysisEngine>(InstantiateAnalysisEngine);
             _pssaModulePath = Path.Combine(hostInfo.BundledModulePath, "PSScriptAnalyzer");
         }
-
+        private PssaCmdletAnalysisEngine? _analysisEngine;
         /// <summary>
         /// The analysis engine to use for running script analysis.
         /// </summary>
-        internal PssaCmdletAnalysisEngine AnalysisEngine => _analysisEngineLazy?.Value;
+        internal PssaCmdletAnalysisEngine? AnalysisEngine
+        {
+            get
+            {
+                _initializationSemaphore.Wait();
+                try
+                {
+                    if (_analysisEngine == null)
+                    {
+                        _analysisEngine = InstantiateAnalysisEngine().GetAwaiter().GetResult();
+                        IsValueCreated = true;
+                    }
+                }
+                finally
+                {
+                    _initializationSemaphore.Release();
+                }
+                return _analysisEngine;
+            }
+            private set
+            {
+                IsValueCreated = true;
+                _analysisEngine = value;
+            }
+        }
 
         /// <summary>
         /// Sets up a script analysis run, eventually returning the result.
@@ -215,7 +236,8 @@ namespace Microsoft.PowerShell.EditorServices.Services
         /// <returns>A thread-safe readonly dictionary of the code actions of the particular file.</returns>
         public async Task<IReadOnlyDictionary<string, IEnumerable<MarkerCorrection>>> GetMostRecentCodeActionsForFileAsync(DocumentUri uri)
         {
-            if (!_workspaceService.TryGetFile(uri, out ScriptFile file)
+            ScriptFile? file = await _workspaceService.TryGetFile(uri).ConfigureAwait(false);
+            if (file is null
                 || !_mostRecentCorrectionsByFile.TryGetValue(file, out CorrectionTableEntry corrections))
             {
                 return null;
@@ -239,7 +261,7 @@ namespace Microsoft.PowerShell.EditorServices.Services
         /// </summary>
         /// <param name="_">The sender of the configuration update event.</param>
         /// <param name="settings">The new language server settings.</param>
-        public void OnConfigurationUpdated(object _, LanguageServerSettings settings)
+        public async Task OnConfigurationUpdated(LanguageServerSettings settings)
         {
             if (settings.ScriptAnalysis.Enable)
             {
@@ -249,7 +271,7 @@ namespace Microsoft.PowerShell.EditorServices.Services
 
         private void EnsureEngineSettingsCurrent()
         {
-            if (_analysisEngineLazy is null
+            if (AnalysisEngine is null
                     || (_pssaSettingsFilePath is not null
                         && !File.Exists(_pssaSettingsFilePath)))
             {
@@ -257,16 +279,17 @@ namespace Microsoft.PowerShell.EditorServices.Services
             }
         }
 
-        private void InitializeAnalysisEngineToCurrentSettings()
+        private async Task InitializeAnalysisEngineToCurrentSettings()
         {
+
             // We may be triggered after the lazy factory is set,
             // but before it's been able to instantiate
-            if (_analysisEngineLazy is null)
+            if (AnalysisEngine is null)
             {
-                _analysisEngineLazy = new Lazy<PssaCmdletAnalysisEngine>(InstantiateAnalysisEngine);
+                AnalysisEngine = await InstantiateAnalysisEngine().ConfigureAwait(false);
                 return;
             }
-            else if (!_analysisEngineLazy.IsValueCreated)
+            else if (IsValueCreated)
             {
                 return;
             }
@@ -276,15 +299,16 @@ namespace Microsoft.PowerShell.EditorServices.Services
 
             // Clear the open file markers and set the new engine factory
             ClearOpenFileMarkers();
-            _analysisEngineLazy = new Lazy<PssaCmdletAnalysisEngine>(() => RecreateAnalysisEngine(currentAnalysisEngine));
+            AnalysisEngine = await RecreateAnalysisEngine(currentAnalysisEngine).ConfigureAwait(false);
         }
 
-        internal PssaCmdletAnalysisEngine InstantiateAnalysisEngine()
+        internal async Task<PssaCmdletAnalysisEngine> InstantiateAnalysisEngine()
         {
             PssaCmdletAnalysisEngine.Builder pssaCmdletEngineBuilder = new(_loggerFactory);
 
             // If there's a settings file use that
-            if (TryFindSettingsFile(out string settingsFilePath))
+            string? settingsFilePath = await TryFindSettingsFile().ConfigureAwait(false);
+            if (!string.IsNullOrEmpty(settingsFilePath))
             {
                 _logger.LogInformation($"Configuring PSScriptAnalyzer with rules at '{settingsFilePath}'");
                 _pssaSettingsFilePath = settingsFilePath;
@@ -299,9 +323,10 @@ namespace Microsoft.PowerShell.EditorServices.Services
             return pssaCmdletEngineBuilder.Build(_pssaModulePath);
         }
 
-        private PssaCmdletAnalysisEngine RecreateAnalysisEngine(PssaCmdletAnalysisEngine oldAnalysisEngine)
+        private async Task<PssaCmdletAnalysisEngine> RecreateAnalysisEngine(PssaCmdletAnalysisEngine oldAnalysisEngine)
         {
-            if (TryFindSettingsFile(out string settingsFilePath))
+            string? settingsFilePath = await TryFindSettingsFile().ConfigureAwait(false);
+            if (!string.IsNullOrEmpty(settingsFilePath))
             {
                 _logger.LogInformation($"Recreating analysis engine with rules at '{settingsFilePath}'");
                 _pssaSettingsFilePath = settingsFilePath;
@@ -312,27 +337,27 @@ namespace Microsoft.PowerShell.EditorServices.Services
             return oldAnalysisEngine.RecreateWithRules(s_defaultRules);
         }
 
-        private bool TryFindSettingsFile(out string settingsFilePath)
+        private async Task<string?> TryFindSettingsFile()
         {
             string configuredPath = _configurationService?.CurrentSettings.ScriptAnalysis.SettingsPath;
-
+            string? settingsFilePath;
             if (string.IsNullOrEmpty(configuredPath))
             {
                 settingsFilePath = null;
-                return false;
+                return settingsFilePath;
             }
 
-            settingsFilePath = _workspaceService?.ResolveWorkspacePath(configuredPath);
+            settingsFilePath = await (_workspaceService?.ResolveWorkspacePath(configuredPath)).ConfigureAwait(false);
 
             if (settingsFilePath is null
                 || !File.Exists(settingsFilePath))
             {
                 _logger.LogInformation($"Unable to find PSSA settings file at '{configuredPath}'. Loading default rules.");
                 settingsFilePath = null;
-                return false;
+                return settingsFilePath;
             }
 
-            return true;
+            return settingsFilePath;
         }
 
         private void ClearOpenFileMarkers()
@@ -467,6 +492,7 @@ namespace Microsoft.PowerShell.EditorServices.Services
 
         #region IDisposable Support
         private bool disposedValue; // To detect redundant calls
+        private bool IsValueCreated;
 
         protected virtual void Dispose(bool disposing)
         {
@@ -474,12 +500,14 @@ namespace Microsoft.PowerShell.EditorServices.Services
             {
                 if (disposing)
                 {
-                    if (_analysisEngineLazy?.IsValueCreated == true)
+                    if (IsValueCreated)
                     {
-                        _analysisEngineLazy.Value.Dispose();
+                        AnalysisEngine.Dispose();
                     }
+                    _initializationSemaphore.Dispose();
 
                     _diagnosticsCancellationTokenSource?.Dispose();
+                    _analysisEngine?.Dispose();
                 }
 
                 disposedValue = true;

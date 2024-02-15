@@ -42,9 +42,9 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
             _remoteFileManagerService = remoteFileManagerService;
         }
 
-        public override Task<Unit> Handle(DidChangeTextDocumentParams notification, CancellationToken token)
+        public override async Task<Unit> Handle(DidChangeTextDocumentParams notification, CancellationToken token)
         {
-            ScriptFile changedFile = _workspaceService.GetFile(notification.TextDocument.Uri);
+            ScriptFile changedFile = await _workspaceService.GetFile(notification.TextDocument.Uri).ConfigureAwait(false);
 
             // A text change notification can batch multiple change requests
             foreach (TextDocumentContentChangeEvent textChange in notification.ContentChanges)
@@ -58,7 +58,7 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
             // Kick off script diagnostics without blocking the response
             // TODO: Get all recently edited files in the workspace
             _analysisService.StartScriptDiagnostics(new ScriptFile[] { changedFile });
-            return Unit.Task;
+            return Unit.Value;
         }
 
         protected override TextDocumentSyncRegistrationOptions CreateRegistrationOptions(TextSynchronizationCapability capability, ClientCapabilities clientCapabilities)
@@ -102,10 +102,10 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
             return Unit.Task;
         }
 
-        public override Task<Unit> Handle(DidCloseTextDocumentParams notification, CancellationToken token)
+        public override async Task<Unit> Handle(DidCloseTextDocumentParams notification, CancellationToken token)
         {
             // Find and close the file in the current session
-            ScriptFile fileToClose = _workspaceService.GetFile(notification.TextDocument.Uri);
+            ScriptFile fileToClose = await _workspaceService.GetFile(notification.TextDocument.Uri).ConfigureAwait(false);
 
             if (fileToClose != null)
             {
@@ -123,12 +123,12 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
             }
 
             _logger.LogTrace("Finished closing document.");
-            return Unit.Task;
+            return Unit.Value;
         }
 
         public override async Task<Unit> Handle(DidSaveTextDocumentParams notification, CancellationToken token)
         {
-            ScriptFile savedFile = _workspaceService.GetFile(notification.TextDocument.Uri);
+            ScriptFile savedFile = await _workspaceService.GetFile(notification.TextDocument.Uri).ConfigureAwait(false);
 
             if (savedFile != null)
             {

@@ -6,10 +6,14 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Management.Automation;
 using System.Security;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.Logging;
+using Microsoft.PowerShell.EditorServices.Services.PowerShell;
 using Microsoft.PowerShell.EditorServices.Services.TextDocument;
 using Microsoft.PowerShell.EditorServices.Services.Workspace;
 using Microsoft.PowerShell.EditorServices.Utility;
@@ -54,6 +58,7 @@ namespace Microsoft.PowerShell.EditorServices.Services
         private readonly ILogger logger;
         private readonly Version powerShellVersion;
         private readonly ConcurrentDictionary<string, ScriptFile> workspaceFiles = new();
+        private readonly IInternalPowerShellExecutionService executionService;
 
         #endregion
 
@@ -163,17 +168,18 @@ namespace Microsoft.PowerShell.EditorServices.Services
         /// </summary>
         /// <param name="filePath">The file path at which the script resides.</param>
         /// <param name="scriptFile">The out parameter that will contain the ScriptFile object.</param>
-        public bool TryGetFile(string filePath, out ScriptFile scriptFile)
+        public async Task<ScriptFile?> TryGetFile(string filePath)
         {
             // This might not have been given a file path, in which case the Uri constructor barfs.
+            ScriptFile? scriptFile;
             try
             {
-                return TryGetFile(new Uri(filePath), out scriptFile);
+                return await TryGetFile(new Uri(filePath)).ConfigureAwait(false);
             }
             catch (UriFormatException)
             {
                 scriptFile = null;
-                return false;
+                return scriptFile;
             }
         }
 
@@ -182,34 +188,21 @@ namespace Microsoft.PowerShell.EditorServices.Services
         /// </summary>
         /// <param name="fileUri">The file uri at which the script resides.</param>
         /// <param name="scriptFile">The out parameter that will contain the ScriptFile object.</param>
-        public bool TryGetFile(Uri fileUri, out ScriptFile scriptFile) =>
-            TryGetFile(DocumentUri.From(fileUri), out scriptFile);
+        public async Task<ScriptFile?> TryGetFile(Uri fileUri) =>
+            await TryGetFile(DocumentUri.From(fileUri)).ConfigureAwait(false);
 
         /// <summary>
         /// Tries to get an open file in the workspace. Returns true if it succeeds, false otherwise.
         /// </summary>
         /// <param name="documentUri">The file uri at which the script resides.</param>
         /// <param name="scriptFile">The out parameter that will contain the ScriptFile object.</param>
-        public bool TryGetFile(DocumentUri documentUri, out ScriptFile scriptFile)
+        public async Task<ScriptFile?> TryGetFile(DocumentUri documentUri)
         {
-            switch (documentUri.Scheme)
-            {
-                // List supported schemes here
-                case "file":
-                case "inmemory":
-                case "untitled":
-                case "vscode-notebook-cell":
-                    break;
-
-                default:
-                    scriptFile = null;
-                    return false;
-            }
-
+            ScriptFile? scriptFile;
             try
             {
-                scriptFile = GetFile(documentUri);
-                return true;
+                scriptFile = await GetFile(documentUri).ConfigureAwait(false);
+                return scriptFile;
             }
             catch (Exception e) when (
                 e is NotSupportedException or
@@ -220,9 +213,9 @@ namespace Microsoft.PowerShell.EditorServices.Services
                 SecurityException or
                 UnauthorizedAccessException)
             {
-                logger.LogWarning($"Failed to get file for fileUri: '{documentUri}'", e);
+                logger.LogWarning($"Failed to get file for Uri: '{documentUri}'", e);
                 scriptFile = null;
-                return false;
+                return scriptFile;
             }
         }
 
@@ -339,13 +332,14 @@ namespace Microsoft.PowerShell.EditorServices.Services
         /// Enumerate all the PowerShell (ps1, psm1, psd1) files in the workspace in a recursive manner, using default values.
         /// </summary>
         /// <returns>An enumerator over the PowerShell files found in the workspace.</returns>
-        public IEnumerable<string> EnumeratePSFiles()
+        public Task<IEnumerable<string>> EnumeratePSFiles(CancellationToken cancellationToken)
         {
-            return EnumeratePSFiles(
+            return EnumeratePSFilesAsync(
                 ExcludeFilesGlob.ToArray(),
                 s_psIncludeAllGlob,
                 maxDepth: 64,
-                ignoreReparsePoints: !FollowSymlinks
+                ignoreReparsePoints: !FollowSymlinks,
+                cancellationToken: cancellationToken
             );
         }
 
@@ -354,7 +348,7 @@ namespace Microsoft.PowerShell.EditorServices.Services
         /// recursive manner. Falls back to initial working directory if there are no workspace folders.
         /// </summary>
         /// <returns>An enumerator over the PowerShell files found in the workspace.</returns>
-        public IEnumerable<string> EnumeratePSFiles(
+        private IEnumerable<string> EnumeratePSFiles(
             string[] excludeGlobs,
             string[] includeGlobs,
             int maxDepth,
@@ -409,9 +403,9 @@ namespace Microsoft.PowerShell.EditorServices.Services
             return reader.ReadToEnd();
         }
 
-        internal string ResolveWorkspacePath(string path) => ResolveRelativeScriptPath(InitialWorkingDirectory, path);
+        internal Task<string> ResolveWorkspacePath(string path) => ResolveRelativeScriptPathAsync(InitialWorkingDirectory, path);
 
-        internal string ResolveRelativeScriptPath(string baseFilePath, string relativePath)
+        internal async Task<string> ResolveRelativeScriptPathAsync(string baseFilePath, string relativePath)
         {
             // TODO: Sometimes the `baseFilePath` (even when its `WorkspacePath`) is null.
             string combinedPath = null;

@@ -116,8 +116,8 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
             }
             else // It's a URI to an untitled script, or a raw script.
             {
-                bool isScriptFile = _workspaceService.TryGetFile(scriptToLaunch, out ScriptFile untitledScript);
-                if (isScriptFile && BreakpointApiUtils.SupportsBreakpointApis(_runspaceContext.CurrentRunspace))
+                ScriptFile untitledScript = await _workspaceService.TryGetFile(scriptToLaunch).ConfigureAwait(false);
+                if (untitledScript is ScriptFile && BreakpointApiUtils.SupportsBreakpointApis(_runspaceContext.CurrentRunspace))
                 {
                     // Parse untitled files with their `Untitled:` URI as the filename which will
                     // cache the URI and contents within the PowerShell parser. By doing this, we
@@ -149,7 +149,7 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
                     command = PSCommandHelpers.BuildDotSourceCommandWithArguments(
                         string.Concat(
                             "{" + System.Environment.NewLine,
-                            isScriptFile ? untitledScript.Contents : scriptToLaunch,
+                            untitledScript is ScriptFile ? untitledScript.Contents : scriptToLaunch,
                             System.Environment.NewLine + "}"),
                             _debugStateService?.Arguments);
                 }

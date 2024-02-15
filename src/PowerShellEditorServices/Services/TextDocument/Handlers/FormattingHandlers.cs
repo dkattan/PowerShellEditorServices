@@ -46,7 +46,7 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
                 return s_emptyTextEditContainer;
             }
 
-            Services.TextDocument.ScriptFile scriptFile = _workspaceService.GetFile(request.TextDocument.Uri);
+            Services.TextDocument.ScriptFile scriptFile = await _workspaceService.GetFile(request.TextDocument.Uri).ConfigureAwait(false);
             System.Collections.Hashtable pssaSettings = _configurationService.CurrentSettings.CodeFormatting.GetPSSASettingsHashtable(
                 request.Options.TabSize,
                 request.Options.InsertSpaces,
@@ -131,7 +131,7 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
                 return s_emptyTextEditContainer;
             }
 
-            Services.TextDocument.ScriptFile scriptFile = _workspaceService.GetFile(request.TextDocument.Uri);
+            Services.TextDocument.ScriptFile scriptFile = await _workspaceService.GetFile(request.TextDocument.Uri).ConfigureAwait(false);
             System.Collections.Hashtable pssaSettings = _configurationService.CurrentSettings.CodeFormatting.GetPSSASettingsHashtable(
                 request.Options.TabSize,
                 request.Options.InsertSpaces,

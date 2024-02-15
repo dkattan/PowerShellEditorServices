@@ -27,8 +27,8 @@ namespace Microsoft.PowerShell.EditorServices.Handlers
         public async Task<CommentHelpRequestResult> Handle(CommentHelpRequestParams request, CancellationToken cancellationToken)
         {
             CommentHelpRequestResult result = new();
-
-            if (!_workspaceService.TryGetFile(request.DocumentUri, out ScriptFile scriptFile))
+            ScriptFile? scriptFile = await _workspaceService.TryGetFile(request.DocumentUri).ConfigureAwait(false);
+            if (scriptFile is null)
             {
                 return result;
             }
